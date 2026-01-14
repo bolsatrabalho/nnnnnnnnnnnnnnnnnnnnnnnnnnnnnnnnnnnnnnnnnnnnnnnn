@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Frequência de Bolsistas</title>
+
+<style>
+body{font-family:Arial;background:#f4f6f8;padding:20px;margin:0}
+.container{background:#fff;padding:20px;border-radius:8px}
+.hidden{display:none}
+
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{border:1px solid #ccc;padding:5px;text-align:center}
+th{background:#eee}
+
+input,select{width:100%;font-size:12px}
+button{padding:6px 10px;border:none;border-radius:4px;cursor:pointer}
+
+.admin{background:#0057b8;color:#fff}
+.coord{background:#2e7d32;color:#fff}
+
+.login-box{max-width:360px;margin:80px auto}
+.error{color:red;text-align:center}
+.topo{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+</style>
+</head>
+
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div id="login" class="container login-box">
+  <h3>Frequência de Bolsistas</h3>
+
+  <input type="email" id="email" placeholder="E-mail institucional">
+  <input type="password" id="senha" placeholder="Senha">
+
+  <button onclick="login()">Entrar</button>
+  <div class="error" id="erroLogin"></div>
+</div>
+
+<!-- ================= TABELA ================= -->
+<div id="tabela" class="container hidden">
+
+  <div class="topo">
+    <h3 id="perfil"></h3>
+    <button onclick="logout()">Sair</button>
+  </div>
+
+  <button id="btnNovo" class="admin hidden" onclick="novoBolsista()">
+    ➕ Adicionar Bolsista
+  </button>
+
+  <br><br>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Campus</th>
+        <th>Nome</th>
+        <th>Matrícula</th>
+        <th>Setor</th>
+        <th>Início</th>
+        <th>Fim</th>
+        <th>Email Coordenador</th>
+        <th>Jan</th>
+        <th>Fev</th>
+        <th>Mar</th>
+        <th>Abr</th>
+        <th>Mai</th>
+        <th>Jun</th>
+        <th>Jul</th>
+        <th>Ago</th>
+        <th>Set</th>
+        <th>Out</th>
+        <th>Nov</th>
+        <th>Dez</th>
+        <th>Justificativa</th>
+        <th>Arquivo</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<script>
+/* ================= CONFIGURAÇÕES ================= */
+const URL_APPS = "https://script.google.com/macros/s/AKfycbyHdda9yzqlsH8cRjnVf3OImK5L6Ypfw0XbOo-lbzpRebAJTn9zMVLz-xh6xGYQW2fzLQ/exec";
+const EMAIL_ADMIN = "bolsatrabalho@prex.uespi.br";
+const SENHA_GERAL = "teste1204";
+
+let emailLogado = "";
+let tipoUsuario = "";
+let bolsistas = [];
+
+/* ================= LOGIN ================= */
+function login(){
+  const email = document.getElementById("email").value.trim().toLowerCase();
+  const senha = document.getElementById("senha").value.trim();
+  const erro  = document.getElementById("erroLogin");
+
+  erro.innerText = "";
+
+  if(!email || !email.endsWith("uespi.br")){
+    erro.innerText = "Use um e-mail institucional válido";
+    return;
+  }
+
+  if(senha !== SENHA_GERAL){
+    erro.innerText = "Senha incorreta";
+    return;
+  }
+
+  emailLogado = email;
+  tipoUsuario = email === EMAIL_ADMIN ? "admin" : "coordenador";
+
+  document.getElementById("login").classList.add("hidden");
+  document.getElementById("tabela").classList.remove("hidden");
+
+  document.getElementById("perfil").innerText =
+    `Usuário: ${emailLogado} | ${tipoUsuario.toUpperCase()}`;
+
+  if(tipoUsuario === "admin"){
+    document.getElementById("btnNovo").classList.remove("hidden");
+  }
+
+  carregarDados();
+}
+
+/* ================= CARREGAR ================= */
+function carregarDados(){
+  fetch(`${URL_APPS}?acao=listar&email=${encodeURIComponent(emailLogado)}`)
+    .then(r => r.json())
+    .then(resp => {
+      bolsistas = resp.dados || [];
+      renderTabela();
+    });
+}
+
+/* ================= RENDER ================= */
+function renderTabela(){
+  const meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = "";
+
+  bolsistas.forEach((b, i) => {
+    const tr = document.createElement("tr");
+
+    function campo(valor, editavel, tipo="text"){
+      return `<input type="${tipo}" value="${valor||""}" ${editavel?"":"readonly"}>`;
+    }
+
+    tr.innerHTML = `
+      <td>${campo(b.campus, tipoUsuario==="admin")}</td>
+      <td>${campo(b.nome, tipoUsuario==="admin")}</td>
+      <td>${campo(b.matricula, tipoUsuario==="admin")}</td>
+      <td>${campo(b.setor, tipoUsuario==="admin")}</td>
+      <td>${campo(b.inicio, tipoUsuario==="admin","date")}</td>
+      <td>${campo(b.fim, tipoUsuario==="admin","date")}</td>
+      <td>${campo(b.email_coordenador, tipoUsuario==="admin")}</td>
+
+      ${meses.map(m => `
+        <td>
+          <select>
+            <option value=""></option>
+            <option ${b[m]==="SIM"?"selected":""}>SIM</option>
+            <option ${b[m]==="NÃO"?"selected":""}>NÃO</option>
+          </select>
+        </td>
+      `).join("")}
+
+      <td><input value="${b.justificativa||""}"></td>
+
+      <td>
+        <input type="file" onchange="uploadArquivo(event,${i})">
+        ${b.arquivo ? `<br><a href="${b.arquivo}" target="_blank">Ver</a>` : ""}
+      </td>
+
+      <td>
+        <button class="${tipoUsuario==="admin"?"admin":"coord"}"
+          onclick="salvarLinha(${i})">💾 Salvar</button>
+      </td>
+    `;
+
+    tbody.appendChild(tr);
+  });
+}
+
+/* ================= SALVAR ================= */
+function salvarLinha(i){
+  const tr = document.getElementById("tbody").children[i];
+  const inputs = tr.querySelectorAll("input,select");
+  const meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+
+  let dados = {
+    campus: inputs[0].value,
+    nome: inputs[1].value,
+    matricula: inputs[2].value,
+    setor: inputs[3].value,
+    inicio: inputs[4].value,
+    fim: inputs[5].value,
+    email_coordenador: inputs[6].value,
+    justificativa: inputs[19].value
+  };
+
+  meses.forEach((m, j) => {
+    dados[m] = inputs[7 + j].value;
+  });
+
+  if(bolsistas[i].arquivoBase64){
+    dados.arquivoBase64 = bolsistas[i].arquivoBase64;
+    dados.nomeArquivo   = bolsistas[i].arquivoNome;
+    dados.tipoArquivo   = bolsistas[i].arquivoMime;
+  }
+
+  fetch(URL_APPS, {
+    method: "POST",
+    body: JSON.stringify(dados)
+  })
+  .then(r => r.json())
+  .then(() => alert("Dados salvos com sucesso"));
+}
+
+/* ================= UPLOAD ================= */
+function uploadArquivo(e, i){
+  const file = e.target.files[0];
+  if(!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    bolsistas[i].arquivoBase64 = reader.result;
+    bolsistas[i].arquivoNome   = file.name;
+    bolsistas[i].arquivoMime   = file.type;
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ================= ADMIN ================= */
+function novoBolsista(){
+  bolsistas.push({});
+  renderTabela();
+}
+
+/* ================= LOGOUT ================= */
+function logout(){
+  location.reload();
+}
+</script>
+
+</body>
+</html>
